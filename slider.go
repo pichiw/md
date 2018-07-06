@@ -21,11 +21,10 @@ func (s *Slider) Mount() {
 	root := doc.Call("getElementById", "slider-example")
 	sliderEl := root.Call("querySelector", "#continuous-mdc-slider")
 	slider := js.Global().Get("mdc").Get("slider").Get("MDCSlider").New(sliderEl)
-	foundation := slider.Get("foundation_")
 	slider.Call("listen", "MDCSlider:change",
 		js.NewCallback(
 			func(vs []js.Value) {
-				fmt.Println("New Value:", foundation.Get("value_"))
+				fmt.Println("New Value:", slider.Get("value"))
 			},
 		),
 	)
