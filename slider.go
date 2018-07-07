@@ -14,7 +14,8 @@ func NewSlider(opts SliderOptions) *Slider {
 		opts.Step = 1
 	}
 	return &Slider{
-		opts: opts,
+		divID: RandID(),
+		opts:  opts,
 	}
 }
 
@@ -33,6 +34,14 @@ type SliderOptions struct {
 type Slider struct {
 	vecty.Core
 
+	divID string
+
+	slider     js.Value
+	sliderOnce sync.Once
+
+	onChangeCB js.Callback
+	onInputCB  js.Callback
+
 	opts      SliderOptions
 	optsMutex sync.Mutex
 }
@@ -43,42 +52,48 @@ func (s *Slider) Value() float64 {
 	return s.opts.Value
 }
 
+func (s *Slider) onChange(vs []js.Value) {
+	s.optsMutex.Lock()
+	s.opts.Value = s.slider.Get("value").Float()
+	s.optsMutex.Unlock()
+
+	oc := s.opts.OnChange
+	if oc == nil {
+		return
+	}
+	oc(s)
+}
+
+func (s *Slider) onInput(vs []js.Value) {
+	s.optsMutex.Lock()
+	s.opts.Value = s.slider.Get("value").Float()
+	s.optsMutex.Unlock()
+
+	oi := s.opts.OnInput
+	if oi == nil {
+		return
+	}
+	oi(s)
+}
+
 func (s *Slider) Mount() {
-	doc := js.Global().Get("document")
+	s.sliderOnce.Do(func() {
+		doc := js.Global().Get("document")
 
-	sliderEl := doc.Call("querySelector", ".mdc-slider")
-	slider := js.Global().Get("mdc").Get("slider").Get("MDCSlider").New(sliderEl)
-	slider.Call("listen", "MDCSlider:change",
-		js.NewCallback(
-			func(vs []js.Value) {
-				s.optsMutex.Lock()
-				s.opts.Value = slider.Get("value").Float()
-				s.optsMutex.Unlock()
+		sliderEl := doc.Call("getElementById", s.divID)
+		s.slider = js.Global().Get("mdc").Get("slider").Get("MDCSlider").New(sliderEl)
 
-				oc := s.opts.OnChange
-				if oc == nil {
-					return
-				}
-				oc(s)
-			},
-		),
-	)
+		s.onChangeCB = js.NewCallback(s.onChange)
+		s.onInputCB = js.NewCallback(s.onInput)
 
-	slider.Call("listen", "MDCSlider:input",
-		js.NewCallback(
-			func(vs []js.Value) {
-				s.optsMutex.Lock()
-				s.opts.Value = slider.Get("value").Float()
-				s.optsMutex.Unlock()
+		s.slider.Call("listen", "MDCSlider:change", s.onChangeCB)
+		s.slider.Call("listen", "MDCSlider:input", s.onInputCB)
+	})
+}
 
-				oi := s.opts.OnInput
-				if oi == nil {
-					return
-				}
-				oi(s)
-			},
-		),
-	)
+func (s *Slider) Unmount() {
+	s.onChangeCB.Release()
+	s.onInputCB.Release()
 }
 
 func (s *Slider) Render() vecty.ComponentOrHTML {
@@ -89,6 +104,7 @@ func (s *Slider) Render() vecty.ComponentOrHTML {
 	return elem.Div(
 		vecty.Markup(
 			vecty.Class("mdc-slider", "mdc-slider--discrete"),
+			vecty.Attribute("id", s.divID),
 			vecty.Attribute("tabindex", "0"),
 			vecty.Attribute("role", "slider"),
 			vecty.Attribute("aria-valuemin", minStr),
