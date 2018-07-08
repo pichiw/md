@@ -38,12 +38,8 @@ type Slider struct {
 
 	slider     js.Value
 	sliderOnce sync.Once
-
-	onChangeCB js.Callback
-	onInputCB  js.Callback
-
-	opts      SliderOptions
-	optsMutex sync.Mutex
+	opts       SliderOptions
+	optsMutex  sync.Mutex
 }
 
 func (s *Slider) Value() float64 {
@@ -83,17 +79,9 @@ func (s *Slider) Mount() {
 		sliderEl := doc.Call("getElementById", s.divID)
 		s.slider = js.Global().Get("mdc").Get("slider").Get("MDCSlider").New(sliderEl)
 
-		s.onChangeCB = js.NewCallback(s.onChange)
-		s.onInputCB = js.NewCallback(s.onInput)
-
-		s.slider.Call("listen", "MDCSlider:change", s.onChangeCB)
-		s.slider.Call("listen", "MDCSlider:input", s.onInputCB)
+		s.slider.Call("listen", "MDCSlider:change", js.NewCallback(s.onChange))
+		s.slider.Call("listen", "MDCSlider:input", js.NewCallback(s.onInput))
 	})
-}
-
-func (s *Slider) Unmount() {
-	s.onChangeCB.Release()
-	s.onInputCB.Release()
 }
 
 func (s *Slider) Render() vecty.ComponentOrHTML {
@@ -101,9 +89,14 @@ func (s *Slider) Render() vecty.ComponentOrHTML {
 	maxStr := strconv.FormatFloat(s.opts.Max, 'f', -1, 64)
 	valueStr := strconv.FormatFloat(s.opts.Value, 'f', -1, 64)
 	stepStr := strconv.FormatFloat(s.opts.Step, 'f', -1, 64)
+
+	if s.slider != (js.Value{}) {
+		s.slider.Call("layout")
+	}
+
 	return elem.Div(
 		vecty.Markup(
-			vecty.Class("mdc-slider", "mdc-slider--discrete"),
+			vecty.Class("mdc-slider", "mdc-slider--discrete", "mdc-slider--display-markers"),
 			vecty.Attribute("id", s.divID),
 			vecty.Attribute("tabindex", "0"),
 			vecty.Attribute("role", "slider"),
@@ -120,6 +113,11 @@ func (s *Slider) Render() vecty.ComponentOrHTML {
 			elem.Div(
 				vecty.Markup(
 					vecty.Class("mdc-slider__track"),
+				),
+			),
+			elem.Div(
+				vecty.Markup(
+					vecty.Class("mdc-slider__track-marker-container"),
 				),
 			),
 		),
